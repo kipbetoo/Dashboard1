@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import io
 
 # Page config
 st.set_page_config(page_title="Kenyan NSE Dashboard", layout="wide")
@@ -60,6 +59,11 @@ if codes:
 if name_filter:
     filtered_df = filtered_df[filtered_df['Name'].str.contains(name_filter, case=False)]
 
+# Check if data is empty after filters
+if filtered_df.empty:
+    st.warning("No data matches the selected filters. Please adjust filters.")
+    st.stop()
+
 # KPIs
 st.header("Key Performance Indicators")
 col1, col2, col3, col4 = st.columns(4)
@@ -78,47 +82,47 @@ total_turnover = (filtered_df['Day Price'] * filtered_df['Volume']).sum()
 avg_change_pct = filtered_df['Change%'].mean()
 col5.metric("Estimated Turnover", f"KES {total_turnover:,.0f}")
 col6.metric("Avg Change %", f"{avg_change_pct:.2f}%")
-col7.metric("Earliest Date", filtered_df['Date'].min().date())
-col8.metric("Latest Date", filtered_df['Date'].max().date())
+# Convert dates to strings for metric display
+col7.metric("Earliest Date", filtered_df['Date'].min().strftime("%Y-%m-%d"))
+col8.metric("Latest Date", filtered_df['Date'].max().strftime("%Y-%m-%d"))
 
 # Charts
 st.subheader("Price Trends")
-if not filtered_df.empty:
-    # Line chart: Day Price over time for selected codes
-    fig_line = px.line(filtered_df, x='Date', y='Day Price', color='Code',
-                       title="Day Price Evolution",
-                       labels={'Day Price': 'Price (KES)', 'Date': 'Date'})
-    st.plotly_chart(fig_line, use_container_width=True)
+# Line chart: Day Price over time for selected codes
+fig_line = px.line(filtered_df, x='Date', y='Day Price', color='Code',
+                   title="Day Price Evolution",
+                   labels={'Day Price': 'Price (KES)', 'Date': 'Date'})
+st.plotly_chart(fig_line, use_container_width=True)
 
-    # Bar chart: Volume by stock
-    volume_by_code = filtered_df.groupby('Code')['Volume'].sum().reset_index()
-    fig_bar = px.bar(volume_by_code, x='Code', y='Volume', title="Total Volume per Stock",
-                     labels={'Volume': 'Total Volume', 'Code': 'Stock Code'})
-    st.plotly_chart(fig_bar, use_container_width=True)
+# Bar chart: Volume by stock
+volume_by_code = filtered_df.groupby('Code')['Volume'].sum().reset_index()
+fig_bar = px.bar(volume_by_code, x='Code', y='Volume', title="Total Volume per Stock",
+                 labels={'Volume': 'Total Volume', 'Code': 'Stock Code'})
+st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Heatmap: average price by day of week and stock (optional)
-    st.subheader("Average Day Price by Weekday")
-    filtered_df['Weekday'] = filtered_df['Date'].dt.day_name()
-    pivot = filtered_df.pivot_table(index='Code', columns='Weekday', values='Day Price', aggfunc='mean')
-    fig_heat = px.imshow(pivot, text_auto=True, aspect="auto", color_continuous_scale='Viridis',
-                         title="Average Day Price by Stock and Weekday")
-    st.plotly_chart(fig_heat, use_container_width=True)
+# Heatmap: average price by day of week and stock
+st.subheader("Average Day Price by Weekday")
+filtered_df['Weekday'] = filtered_df['Date'].dt.day_name()
+pivot = filtered_df.pivot_table(index='Code', columns='Weekday', values='Day Price', aggfunc='mean')
+fig_heat = px.imshow(pivot, text_auto=True, aspect="auto", color_continuous_scale='Viridis',
+                     title="Average Day Price by Stock and Weekday")
+st.plotly_chart(fig_heat, use_container_width=True)
 
-    # Top gainers/losers
-    st.subheader("Top Gainers & Losers (Latest Date)")
-    latest_date = filtered_df['Date'].max()
-    latest_data = filtered_df[filtered_df['Date'] == latest_date].copy()
-    if not latest_data.empty:
-        latest_data = latest_data.sort_values('Change%', ascending=False)
-        col_gain, col_loss = st.columns(2)
-        with col_gain:
-            st.write("**Top Gainers**")
-            st.dataframe(latest_data[['Code', 'Name', 'Day Price', 'Change%']].head(5), use_container_width=True)
-        with col_loss:
-            st.write("**Top Losers**")
-            st.dataframe(latest_data[['Code', 'Name', 'Day Price', 'Change%']].tail(5).sort_values('Change%'), use_container_width=True)
+# Top gainers/losers
+st.subheader("Top Gainers & Losers (Latest Date)")
+latest_date = filtered_df['Date'].max()
+latest_data = filtered_df[filtered_df['Date'] == latest_date].copy()
+if not latest_data.empty:
+    latest_data = latest_data.sort_values('Change%', ascending=False)
+    col_gain, col_loss = st.columns(2)
+    with col_gain:
+        st.write("**Top Gainers**")
+        st.dataframe(latest_data[['Code', 'Name', 'Day Price', 'Change%']].head(5), use_container_width=True)
+    with col_loss:
+        st.write("**Top Losers**")
+        st.dataframe(latest_data[['Code', 'Name', 'Day Price', 'Change%']].tail(5).sort_values('Change%'), use_container_width=True)
 else:
-    st.warning("No data matches the selected filters. Please adjust filters.")
+    st.info("No data for the latest date in filtered results.")
 
 # Data table
 st.subheader("Filtered Data")
